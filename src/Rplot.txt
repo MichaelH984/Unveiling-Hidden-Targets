@@ -1,0 +1,47 @@
+library(ggplot2)
+library(dplyr)
+
+data2 <- read.table("~/manhatten plot/combined_file4plot.bed", quote="\"", comment.char="")
+data1 <- read.table("~/manhatten plot/gwipsman.bed", quote="\"", comment.char="")
+
+colnames(data1) <- c("chrom", "start", "end", "value")
+colnames(data2) <- c("chrom", "start", "end", "value")
+
+data1 <- data1 %>% mutate(start = as.numeric(start), end = as.numeric(end), value = as.numeric(value))
+data2 <- data2 %>% mutate(start = as.numeric(start), end = as.numeric(end), value = as.numeric(value))
+
+data2 <- data2 %>% mutate(dataset = "Filtered")
+data1 <- data1 %>% mutate(dataset = "GWIPS-viz Ribo-seq")
+
+combined_data <- rbind(data1, data2)
+
+chrom_order <- paste0("chr", c(1:22, "X", "Y"))  # Custom order for chromosomes
+combined_data$chrom <- factor(combined_data$chrom, levels = chrom_order)
+
+create_bins <- function(data) {
+data %>%
+group_by(chrom) %>%
+mutate(chrom_length = base::max(end, na.rm = TRUE)) %>%  # Use base::max to avoid any conflicts
+mutate(bin = floor(start / (chrom_length / 100))) %>%   # Divide each chromosome into 100 bins
+group_by(chrom, bin, dataset) %>%
+summarise(total_reads = sum(value, na.rm = TRUE)) %>%
+ungroup()
+}
+
+binned_data <- create_bins(combined_data)
+
+line_graph <- ggplot(binned_data, aes(x = bin, y = total_reads, color = dataset, group = dataset)) +
+  geom_line(size = 1) +  # Use geom_line for a line graph
+  scale_y_log10(labels = scales::trans_format("log10", scales::math_format(10^.x))) +  # Logarithmic y-axis labels
+  annotation_logticks(sides = "l") +  # Add log scale ticks on the left side (y-axis)
+  facet_wrap(~ chrom, scales = "free_x", nrow = 6) +  # Ensure chromosomes are in order and wrap in a grid
+  labs(title = "Total Reads per Chromosome Section (Log10 Scale)",
+       x = "Chromosome Section (100 bins per chromosome)",
+       y = "Total Reads (Log Scale)",
+       color = "Dataset") +
+  theme_minimal()
+
+print(line_graph)
+
+
+ 	
